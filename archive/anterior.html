@@ -1,0 +1,1665 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KINET — Adaptive Postural Intelligence · Iris Systems</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<style>
+/* ============================================================
+   KINET — Design Tokens
+   ============================================================ */
+:root{
+  --bg:            #030407;
+  --bg-raise:      #06080d;
+  --bg-panel:      #0a0d14;
+  --line:          rgba(248,250,252,0.08);
+  --line-strong:   rgba(248,250,252,0.16);
+
+  --cyan:          #00E5FF;   /* Cognitive Cyan */
+  --cobalt:        #1A56DB;   /* Kinetic Cobalt */
+  --amber:         #FF9F1C;   /* Temporal Amber */
+  --red:           #E11D48;   /* Critical Red */
+  --pearl:         #F8FAFC;   /* Adaptive Pearl */
+  --pearl-dim:      rgba(248,250,252,0.62);
+  --pearl-faint:    rgba(248,250,252,0.38);
+
+  --f-display: 'Space Grotesk', sans-serif;
+  --f-body:    'Inter', sans-serif;
+  --f-mono:    'JetBrains Mono', monospace;
+
+  --container: 1240px;
+  --ease: cubic-bezier(.16,.84,.44,1);
+}
+
+*{box-sizing:border-box; margin:0; padding:0;}
+html{scroll-behavior:smooth;}
+body{
+  background:var(--bg);
+  color:var(--pearl);
+  font-family:var(--f-body);
+  overflow-x:hidden;
+  -webkit-font-smoothing:antialiased;
+}
+@media (prefers-reduced-motion: reduce){
+  html{scroll-behavior:auto;}
+  *{animation-duration:0.001ms !important; animation-iteration-count:1 !important; transition-duration:0.001ms !important;}
+}
+::selection{background:var(--cyan); color:#000;}
+
+a{color:inherit; text-decoration:none;}
+img,canvas,svg{display:block; max-width:100%;}
+button{font-family:inherit; cursor:pointer;}
+
+.wrap{max-width:var(--container); margin:0 auto; padding:0 32px;}
+@media(max-width:720px){.wrap{padding:0 20px;}}
+
+/* background grid texture used throughout */
+.grid-bg{
+  position:absolute; inset:0;
+  background-image:
+    linear-gradient(var(--line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--line) 1px, transparent 1px);
+  background-size:56px 56px;
+  mask-image: radial-gradient(ellipse 80% 60% at 50% 30%, black 40%, transparent 90%);
+  pointer-events:none;
+}
+
+.eyebrow{
+  font-family:var(--f-mono);
+  font-size:12px;
+  letter-spacing:0.14em;
+  color:var(--cyan);
+  display:flex; align-items:center; gap:10px;
+}
+.eyebrow::before{content:""; width:16px; height:1px; background:var(--cyan); display:inline-block;}
+
+h1,h2,h3{font-family:var(--f-display); font-weight:600; letter-spacing:-0.01em; line-height:1.05;}
+
+.section-head{max-width:640px; margin-bottom:56px;}
+.section-head h2{font-size:clamp(30px,4vw,46px); margin-bottom:16px;}
+.section-head p{color:var(--pearl-dim); font-size:17px; line-height:1.6;}
+
+section{position:relative; padding:120px 0;}
+@media(max-width:720px){section{padding:80px 0;}}
+
+.btn{
+  display:inline-flex; align-items:center; gap:10px;
+  padding:14px 26px;
+  font-family:var(--f-mono);
+  font-size:13px;
+  letter-spacing:0.06em;
+  border-radius:2px;
+  border:1px solid var(--line-strong);
+  transition:border-color .25s var(--ease), background .25s var(--ease), transform .25s var(--ease);
+  white-space:nowrap;
+}
+.btn-primary{background:var(--cyan); color:#001014; border-color:var(--cyan); font-weight:600;}
+.btn-primary:hover{background:#4df0ff; transform:translateY(-1px);}
+.btn-ghost{color:var(--pearl); background:transparent;}
+.btn-ghost:hover{border-color:var(--cyan); color:var(--cyan);}
+
+/* reveal-on-scroll */
+.reveal{opacity:0; transform:translateY(28px); transition:opacity .8s var(--ease), transform .8s var(--ease);}
+.reveal.in{opacity:1; transform:translateY(0);}
+.reveal-delay1{transition-delay:.08s;}
+.reveal-delay2{transition-delay:.16s;}
+.reveal-delay3{transition-delay:.24s;}
+.reveal-delay4{transition-delay:.32s;}
+
+/* ============================================================
+   01 — NAVBAR
+   ============================================================ */
+#navbar{
+  position:fixed; top:0; left:0; right:0; z-index:200;
+  padding:22px 0;
+  transition:background .35s var(--ease), padding .35s var(--ease), border-color .35s var(--ease), backdrop-filter .35s var(--ease);
+  border-bottom:1px solid transparent;
+}
+#navbar.scrolled{
+  padding:14px 0;
+  background:rgba(4,6,10,0.72);
+  backdrop-filter:blur(16px) saturate(140%);
+  -webkit-backdrop-filter:blur(16px) saturate(140%);
+  border-bottom:1px solid var(--line);
+}
+.nav-inner{display:flex; align-items:center; justify-content:space-between; gap:24px;}
+.nav-brand{display:flex; align-items:baseline; gap:10px;}
+.nav-brand .mark{font-family:var(--f-display); font-weight:700; font-size:20px; letter-spacing:0.01em;}
+.nav-brand .sub{font-family:var(--f-mono); font-size:10px; letter-spacing:0.16em; color:var(--pearl-faint);}
+.nav-links{display:flex; gap:34px; font-family:var(--f-mono); font-size:12.5px; letter-spacing:0.05em; color:var(--pearl-dim);}
+.nav-links a{position:relative; padding:4px 0; transition:color .2s;}
+.nav-links a::after{content:""; position:absolute; left:0; bottom:0; width:0; height:1px; background:var(--cyan); transition:width .25s var(--ease);}
+.nav-links a:hover{color:var(--pearl);}
+.nav-links a:hover::after{width:100%;}
+.nav-cta{display:flex; align-items:center; gap:18px;}
+.nav-toggle{display:none; flex-direction:column; gap:5px; background:none; border:none; padding:6px;}
+.nav-toggle span{width:22px; height:1.5px; background:var(--pearl);}
+@media(max-width:900px){
+  .nav-links{display:none;}
+  .nav-toggle{display:flex;}
+}
+#mobile-menu{
+  position:fixed; inset:0; background:rgba(3,4,7,0.98); z-index:199;
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:30px;
+  opacity:0; pointer-events:none; transition:opacity .3s var(--ease);
+  font-family:var(--f-mono); font-size:18px; letter-spacing:0.05em;
+}
+#mobile-menu.open{opacity:1; pointer-events:auto;}
+
+/* ============================================================
+   02 — HERO
+   ============================================================ */
+#hero{
+  min-height:100svh;
+  display:flex; align-items:center;
+  padding-top:120px; padding-bottom:60px;
+  position:relative;
+}
+.hero-grid{display:grid; grid-template-columns:1.05fr 1fr; gap:60px; align-items:center; position:relative; z-index:2;}
+@media(max-width:980px){.hero-grid{grid-template-columns:1fr; gap:56px;}}
+
+.hero-flow{font-family:var(--f-mono); font-size:12px; letter-spacing:0.18em; color:var(--pearl-faint); margin-top:36px; display:flex; align-items:center; gap:8px;}
+.hero-flow b{color:var(--cyan); font-weight:500;}
+
+.hero-copy .eyebrow{margin-bottom:22px;}
+.hero-title{font-size:clamp(56px,9vw,108px); line-height:0.92; font-weight:700; letter-spacing:-0.02em;}
+.hero-title .accent{
+  background:linear-gradient(100deg, var(--cyan), var(--cobalt) 70%);
+  -webkit-background-clip:text; background-clip:text; color:transparent;
+}
+.hero-tagline{font-family:var(--f-display); font-size:19px; color:var(--pearl-dim); margin-top:18px; font-weight:500;}
+.hero-quote{
+  margin-top:26px; padding-left:18px; border-left:2px solid var(--cyan);
+  font-size:16px; line-height:1.6; color:var(--pearl-dim); max-width:440px;
+}
+.hero-actions{display:flex; gap:14px; margin-top:38px; flex-wrap:wrap;}
+
+.hero-visual{position:relative; aspect-ratio:1/1.05; border:1px solid var(--line); border-radius:4px; background:radial-gradient(ellipse at 60% 30%, rgba(0,229,255,0.06), transparent 60%), var(--bg-panel); overflow:hidden;}
+.hero-visual canvas{position:absolute; inset:0; width:100%; height:100%;}
+#heroScene{position:absolute; inset:0; width:100%; height:100%;}
+#heroScene canvas{position:absolute; inset:0; width:100% !important; height:100% !important; display:block;}
+.hud-corner{position:absolute; font-family:var(--f-mono); font-size:10px; letter-spacing:0.1em; color:var(--pearl-faint); line-height:1.6;}
+.hud-tl{top:16px; left:16px;}
+.hud-tl .lbl{color:var(--cyan);}
+.hud-panel{
+  position:absolute; bottom:16px; left:16px; right:16px;
+  background:rgba(6,8,13,0.7); backdrop-filter:blur(8px);
+  border:1px solid var(--line); border-radius:2px;
+  padding:14px 16px;
+  display:grid; grid-template-columns:repeat(5,1fr); gap:10px;
+  font-family:var(--f-mono);
+}
+.hud-metric .k{font-size:9px; letter-spacing:0.1em; color:var(--pearl-faint);}
+.hud-metric .v{font-size:15px; color:var(--pearl); margin-top:4px; font-weight:500;}
+.hud-metric .v.cyan{color:var(--cyan);}
+.hud-metric .v.amber{color:var(--amber);}
+@media(max-width:520px){.hud-panel{grid-template-columns:repeat(3,1fr); row-gap:14px;}}
+
+/* ============================================================
+   02b — SIMULADOR DE RIESGO POSTURAL + DASHBOARD BIOMÉCANICO
+   ============================================================ */
+.sim-grid{display:grid; grid-template-columns:1.1fr 0.9fr; gap:1px; background:var(--line); border:1px solid var(--line); border-radius:6px; overflow:hidden;}
+@media(max-width:860px){.sim-grid{grid-template-columns:1fr;}}
+.sim-panel{background:var(--bg-panel); padding:34px 32px;}
+.tag-mono{font-family:var(--f-mono); font-size:11px; letter-spacing:0.12em; color:var(--pearl-faint);}
+.sim-slider-head{display:flex; justify-content:space-between; align-items:baseline; margin-bottom:16px;}
+.sim-angle-readout{font-family:var(--f-mono); font-size:26px; color:var(--cyan); font-weight:600;}
+.sim-range{
+  width:100%; height:4px; -webkit-appearance:none; appearance:none;
+  background:linear-gradient(90deg, var(--cyan), var(--amber) 60%, var(--red));
+  border-radius:2px; outline:none; cursor:pointer;
+}
+.sim-range::-webkit-slider-thumb{
+  -webkit-appearance:none; width:18px; height:18px; border-radius:50%;
+  background:var(--pearl); border:3px solid var(--bg); box-shadow:0 0 0 1px var(--line-strong), 0 0 12px rgba(0,229,255,0.5);
+  cursor:pointer;
+}
+.sim-range::-moz-range-thumb{
+  width:18px; height:18px; border-radius:50%; background:var(--pearl); border:3px solid var(--bg);
+  box-shadow:0 0 0 1px var(--line-strong), 0 0 12px rgba(0,229,255,0.5); cursor:pointer;
+}
+.sim-range-labels{display:flex; justify-content:space-between; font-family:var(--f-mono); font-size:10.5px; color:var(--pearl-faint); margin-top:8px;}
+.sim-results{display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-top:30px;}
+.sim-result-card{border:1px solid var(--line-strong); border-radius:4px; padding:16px 18px; background:rgba(255,255,255,0.015); transition:border-color .3s, background .3s;}
+.sim-result-card .k{font-family:var(--f-mono); font-size:10px; letter-spacing:0.1em; color:var(--pearl-faint);}
+.sim-result-card .v{font-family:var(--f-mono); font-size:24px; margin-top:8px; font-weight:600; color:var(--pearl); transition:color .3s;}
+.sim-result-card .v .unit{font-size:13px; color:var(--pearl-faint);}
+.sim-note{margin-top:22px; font-family:var(--f-mono); font-size:11px; line-height:1.6; color:var(--pearl-faint);}
+
+.dash-biomech{display:flex; flex-direction:column; gap:14px;}
+.biomech-card{
+  display:flex; align-items:center; gap:16px;
+  border:1px solid var(--line); border-radius:4px; padding:16px 18px;
+  background:rgba(255,255,255,0.015); transition:border-color .3s;
+}
+.biomech-card .bc-icon{font-size:20px; color:var(--cyan); width:34px; height:34px; border:1px solid var(--line-strong); border-radius:50%; display:flex; align-items:center; justify-content:center; flex-shrink:0;}
+.biomech-card .k{font-family:var(--f-mono); font-size:10px; letter-spacing:0.1em; color:var(--pearl-faint);}
+.biomech-card .v{font-family:var(--f-mono); font-size:17px; margin-top:5px; color:var(--pearl);}
+
+/* risk state coloring, applied via JS */
+.risk-low .sim-result-card, .risk-low .biomech-card{border-color:rgba(0,229,255,0.4);}
+.risk-low #simRisk, .risk-low #simLoad{color:var(--cyan) !important;}
+.risk-moderate .sim-result-card, .risk-moderate .biomech-card{border-color:rgba(255,159,28,0.4);}
+.risk-moderate #simRisk, .risk-moderate #simLoad{color:var(--amber) !important;}
+.risk-critical .sim-result-card, .risk-critical .biomech-card{border-color:rgba(225,29,72,0.45);}
+.risk-critical #simRisk, .risk-critical #simLoad{color:var(--red) !important;}
+
+/* ============================================================
+   02c — FLUJO DEL MOTOR KINET
+   ============================================================ */
+.mf-grid{display:grid; grid-template-columns:repeat(4,1fr); gap:1px; background:var(--line); border:1px solid var(--line); border-radius:6px; overflow:hidden;}
+@media(max-width:900px){.mf-grid{grid-template-columns:1fr 1fr;}}
+@media(max-width:560px){.mf-grid{grid-template-columns:1fr;}}
+.mf-card{background:var(--bg-panel); padding:30px 26px;}
+.mf-num{font-family:var(--f-mono); font-size:12px; color:var(--pearl-faint); letter-spacing:0.1em;}
+.mf-card h3{font-size:18px; margin:12px 0 10px; font-family:var(--f-display);}
+.mf-card p{font-size:13px; color:var(--pearl-dim); line-height:1.55;}
+.mf-card:nth-child(1){border-top:2px solid var(--cyan);}
+.mf-card:nth-child(2){border-top:2px solid var(--cobalt);}
+.mf-card:nth-child(3){border-top:2px solid var(--amber);}
+.mf-card:nth-child(4){border-top:2px solid var(--red);}
+
+/* ============================================================
+   03 — THE PROBLEM
+   ============================================================ */
+.problem-split{display:grid; grid-template-columns:1fr 1fr; gap:1px; background:var(--line); border:1px solid var(--line); border-radius:4px; overflow:hidden;}
+@media(max-width:820px){.problem-split{grid-template-columns:1fr;}}
+.problem-col{background:var(--bg-panel); padding:44px 36px;}
+.problem-col .tag{font-family:var(--f-mono); font-size:11px; letter-spacing:0.14em; color:var(--pearl-faint); margin-bottom:28px;}
+.flow-rigid{display:flex; flex-direction:column; align-items:flex-start; gap:0;}
+.flow-node{
+  font-family:var(--f-mono); font-size:13px; letter-spacing:0.04em;
+  border:1px solid var(--line-strong); padding:12px 18px; border-radius:2px;
+  color:var(--pearl-dim); background:rgba(255,255,255,0.02);
+}
+.flow-arrow{color:var(--pearl-faint); padding:10px 0 10px 18px; font-family:var(--f-mono); font-size:14px;}
+.flow-node.alert{border-color:var(--red); color:var(--red); background:rgba(225,29,72,0.08);}
+
+.problem-col.kinet .tag{color:var(--cyan);}
+.kinet-inputs{display:flex; flex-wrap:wrap; gap:8px; margin-bottom:4px;}
+.kinet-chip{
+  font-family:var(--f-mono); font-size:11.5px; letter-spacing:0.05em;
+  border:1px solid rgba(0,229,255,0.35); color:var(--cyan);
+  padding:7px 12px; border-radius:20px; background:rgba(0,229,255,0.06);
+}
+.problem-col.kinet .flow-node{border-color:rgba(0,229,255,0.4); color:var(--pearl);}
+.problem-col.kinet .flow-node.risk{border-color:var(--amber); color:var(--amber); background:rgba(255,159,28,0.08);}
+.problem-col.kinet .flow-node.adaptive{border-color:var(--cyan); color:var(--cyan); background:rgba(0,229,255,0.08);}
+
+/* ============================================================
+   04 — YOUR POSTURE IS NOT A NUMBER (convergence)
+   ============================================================ */
+#converge{text-align:center;}
+#converge .section-head{margin-left:auto; margin-right:auto; text-align:center;}
+.converge-stage{position:relative; max-width:760px; margin:0 auto; aspect-ratio:16/11;}
+.converge-stage canvas{position:absolute; inset:0; width:100%; height:100%;}
+.converge-core{
+  position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+  z-index:3; text-align:center; pointer-events:none;
+}
+.converge-core .ring{
+  width:120px; height:120px; border-radius:50%; border:1px solid rgba(0,229,255,0.5);
+  display:flex; align-items:center; justify-content:center; margin:0 auto;
+  background:rgba(0,229,255,0.05); box-shadow:0 0 40px rgba(0,229,255,0.15);
+}
+.converge-core .lbl{font-family:var(--f-mono); font-size:12px; letter-spacing:0.08em; color:var(--cyan); font-weight:600;}
+.converge-out{margin-top:22px; font-family:var(--f-mono); font-size:13px; letter-spacing:0.12em; color:var(--amber);}
+
+/* ============================================================
+   05 — KINET ENGINE
+   ============================================================ */
+#engine{background:var(--bg-raise); border-top:1px solid var(--line); border-bottom:1px solid var(--line);}
+.engine-canvas-wrap{position:relative; max-width:900px; margin:0 auto; aspect-ratio:4/3;}
+.engine-canvas-wrap canvas{position:absolute; inset:0; width:100%; height:100%;}
+.engine-legend{display:flex; justify-content:center; gap:28px; margin-top:36px; flex-wrap:wrap; font-family:var(--f-mono); font-size:11px; letter-spacing:0.06em; color:var(--pearl-faint);}
+.engine-legend span{display:inline-flex; align-items:center; gap:8px;}
+.dot{width:8px; height:8px; border-radius:50%; display:inline-block;}
+
+/* ============================================================
+   06 — ADAPTIVE FEEDBACK
+   ============================================================ */
+.feedback-timeline{display:flex; align-items:center; justify-content:space-between; max-width:760px; margin:0 auto 72px; flex-wrap:wrap; gap:12px;}
+.ft-step{font-family:var(--f-mono); font-size:12px; letter-spacing:0.08em; color:var(--pearl-dim); display:flex; flex-direction:column; align-items:center; gap:10px;}
+.ft-step .node{width:9px; height:9px; border-radius:50%; background:var(--pearl-faint);}
+.ft-step.active .node{background:var(--cyan); box-shadow:0 0 10px var(--cyan);}
+.ft-step.active{color:var(--cyan);}
+.ft-line{flex:1; height:1px; background:var(--line-strong); min-width:24px;}
+
+.risk-states{display:grid; grid-template-columns:repeat(3,1fr); gap:16px; max-width:900px; margin:0 auto;}
+@media(max-width:720px){.risk-states{grid-template-columns:1fr;}}
+.risk-card{
+  border:1px solid var(--line-strong); border-radius:4px; padding:28px 24px;
+  cursor:pointer; transition:all .3s var(--ease); background:var(--bg-panel);
+  text-align:left; position:relative; overflow:hidden;
+}
+.risk-card .rc-level{font-family:var(--f-mono); font-size:11px; letter-spacing:0.14em; color:var(--pearl-faint); margin-bottom:10px;}
+.risk-card h3{font-size:22px; margin-bottom:8px;}
+.risk-card p{font-size:13.5px; color:var(--pearl-dim);}
+.risk-card[data-level="low"].active{border-color:var(--cyan); background:rgba(0,229,255,0.06); box-shadow:0 0 30px rgba(0,229,255,0.12);}
+.risk-card[data-level="low"].active .rc-level{color:var(--cyan);}
+.risk-card[data-level="moderate"].active{border-color:var(--amber); background:rgba(255,159,28,0.06); box-shadow:0 0 30px rgba(255,159,28,0.12);}
+.risk-card[data-level="moderate"].active .rc-level{color:var(--amber);}
+.risk-card[data-level="high"].active{border-color:var(--red); background:rgba(225,29,72,0.06); box-shadow:0 0 30px rgba(225,29,72,0.12);}
+.risk-card[data-level="high"].active .rc-level{color:var(--red);}
+
+.kinet-toast{
+  max-width:340px; margin:44px auto 0; border:1px solid var(--line-strong); border-radius:4px;
+  padding:16px 18px; background:var(--bg-panel); display:flex; gap:12px; align-items:flex-start;
+  font-family:var(--f-mono); transition:border-color .3s, background .3s;
+}
+.kinet-toast .dot-live{width:8px; height:8px; border-radius:50%; margin-top:5px; flex-shrink:0; transition:background .3s;}
+.kinet-toast .tt{font-size:11px; letter-spacing:0.1em; color:var(--pearl-faint); margin-bottom:4px;}
+.kinet-toast .tm{font-size:13px; line-height:1.5;}
+
+/* ============================================================
+   07 — HOW IT WORKS
+   ============================================================ */
+.hiw-grid{display:grid; grid-template-columns:repeat(4,1fr); gap:1px; background:var(--line); border:1px solid var(--line); border-radius:4px; overflow:hidden;}
+@media(max-width:900px){.hiw-grid{grid-template-columns:1fr 1fr;}}
+@media(max-width:560px){.hiw-grid{grid-template-columns:1fr;}}
+.hiw-card{background:var(--bg-panel); padding:34px 26px; min-height:260px; display:flex; flex-direction:column;}
+.hiw-num{font-family:var(--f-mono); font-size:12px; color:var(--pearl-faint); letter-spacing:0.1em;}
+.hiw-card h3{font-size:19px; margin:14px 0 18px; font-family:var(--f-display);}
+.hiw-list{display:flex; flex-direction:column; gap:8px; font-family:var(--f-mono); font-size:12px; color:var(--pearl-dim); letter-spacing:0.03em; margin-top:auto;}
+.hiw-list .ar{color:var(--pearl-faint); font-size:11px;}
+.hiw-card:nth-child(1){border-top:2px solid var(--cyan);}
+.hiw-card:nth-child(2){border-top:2px solid var(--cobalt);}
+.hiw-card:nth-child(3){border-top:2px solid var(--amber);}
+.hiw-card:nth-child(4){border-top:2px solid var(--red);}
+
+/* ============================================================
+   08 — LIVE DASHBOARD
+   ============================================================ */
+#dashboard{background:var(--bg-raise); border-top:1px solid var(--line); border-bottom:1px solid var(--line);}
+.dash-frame{border:1px solid var(--line-strong); border-radius:6px; background:var(--bg-panel); overflow:hidden;}
+.dash-bar{display:flex; align-items:center; justify-content:space-between; padding:16px 22px; border-bottom:1px solid var(--line);}
+.dash-title{font-family:var(--f-mono); font-size:13px; letter-spacing:0.08em;}
+.dash-badges{display:flex; gap:8px;}
+.badge{font-family:var(--f-mono); font-size:10px; letter-spacing:0.08em; padding:5px 10px; border-radius:20px; border:1px solid var(--line-strong); color:var(--pearl-faint); display:flex; align-items:center; gap:6px;}
+.badge .dot{width:6px; height:6px;}
+.badge.live .dot{background:var(--red); animation:pulse 1.6s infinite;}
+.badge.live{color:var(--red); border-color:rgba(225,29,72,0.4);}
+.badge.analyzing .dot{background:var(--cyan);}
+.badge.analyzing{color:var(--cyan); border-color:rgba(0,229,255,0.4);}
+.badge.baseline .dot{background:var(--amber);}
+.badge.baseline{color:var(--amber); border-color:rgba(255,159,28,0.4);}
+@keyframes pulse{0%,100%{opacity:1;} 50%{opacity:.3;}}
+
+.dash-body{display:grid; grid-template-columns:1fr 1.3fr; gap:1px; background:var(--line);}
+@media(max-width:900px){.dash-body{grid-template-columns:1fr;}}
+.dash-panel{background:var(--bg-panel); padding:26px;}
+.dash-track-canvas{position:relative; aspect-ratio:1/1.1; background:rgba(255,255,255,0.015); border:1px solid var(--line); border-radius:4px; overflow:hidden;}
+.dash-track-canvas canvas{position:absolute; inset:0; width:100%; height:100%;}
+.dash-metrics{display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:22px;}
+.dm{border:1px solid var(--line); border-radius:3px; padding:14px 16px; background:rgba(255,255,255,0.015);}
+.dm .k{font-family:var(--f-mono); font-size:10px; letter-spacing:0.1em; color:var(--pearl-faint);}
+.dm .v{font-family:var(--f-mono); font-size:22px; margin-top:6px; font-weight:500;}
+.dm .v.cyan{color:var(--cyan);} .dm .v.amber{color:var(--amber);}
+.dash-graph-label{font-family:var(--f-mono); font-size:11px; letter-spacing:0.08em; color:var(--pearl-faint); margin-bottom:10px;}
+.dash-graph{border:1px solid var(--line); border-radius:3px; background:rgba(255,255,255,0.015); position:relative; height:150px;}
+.dash-graph canvas{position:absolute; inset:0; width:100%; height:100%;}
+.dash-conceptual{position:absolute; top:14px; right:16px; font-family:var(--f-mono); font-size:9px; letter-spacing:0.1em; color:var(--pearl-faint); border:1px solid var(--line); padding:4px 8px; border-radius:2px;}
+
+/* ============================================================
+   09 — THE DIFFERENCE
+   ============================================================ */
+.diff-wrap{position:relative; max-width:640px; margin:0 auto; text-align:center;}
+.diff-toggle{display:flex; justify-content:center; gap:0; margin-bottom:44px; border:1px solid var(--line-strong); border-radius:30px; overflow:hidden; width:fit-content; margin-left:auto; margin-right:auto;}
+.diff-btn{font-family:var(--f-mono); font-size:12px; letter-spacing:0.08em; padding:11px 24px; background:transparent; border:none; color:var(--pearl-faint); transition:all .25s;}
+.diff-btn.active{background:var(--cyan); color:#001014; font-weight:600;}
+.diff-panel{display:none; text-align:left;}
+.diff-panel.active{display:block;}
+.diff-flow{display:flex; flex-direction:column; align-items:center; gap:0;}
+.diff-flow .flow-node{width:220px; text-align:center;}
+.diff-flow .flow-arrow{padding:8px 0;}
+.diff-inputs-row{display:flex; flex-wrap:wrap; gap:8px; justify-content:center; max-width:420px; margin:0 auto 6px;}
+
+/* ============================================================
+   10 — IRIS SYSTEMS
+   ============================================================ */
+.team-grid{display:grid; grid-template-columns:repeat(4,1fr); gap:20px;}
+@media(max-width:900px){.team-grid{grid-template-columns:1fr 1fr;}}
+@media(max-width:520px){.team-grid{grid-template-columns:1fr;}}
+.team-card{border:1px solid var(--line); border-radius:4px; overflow:hidden; background:var(--bg-panel); transition:border-color .3s, transform .3s;}
+.team-card:hover{border-color:rgba(0,229,255,0.4); transform:translateY(-4px);}
+.team-photo{aspect-ratio:1/1; background:
+   repeating-linear-gradient(45deg, rgba(255,255,255,0.03) 0 2px, transparent 2px 14px),
+   linear-gradient(160deg, #0c1018, #060810);
+  display:flex; align-items:center; justify-content:center; border-bottom:1px solid var(--line);
+}
+.team-photo svg{width:38%; opacity:0.25;}
+.team-info{padding:16px 18px;}
+.team-info .tn{font-family:var(--f-display); font-size:15px; color:var(--pearl-dim);}
+.team-info .tr{font-family:var(--f-mono); font-size:11px; letter-spacing:0.08em; color:var(--pearl-faint); margin-top:4px;}
+
+/* ============================================================
+   11 — PROJECT VISION
+   ============================================================ */
+#vision{text-align:center; overflow:hidden;}
+.vision-flow{display:flex; justify-content:center; align-items:center; gap:18px; flex-wrap:wrap; font-family:var(--f-mono); font-size:13px; letter-spacing:0.1em; color:var(--pearl-dim); margin-bottom:80px;}
+.vision-flow .vnode{border:1px solid var(--line-strong); padding:10px 20px; border-radius:2px;}
+.vision-flow .varrow{color:var(--pearl-faint);}
+.vision-lines{max-width:720px; margin:0 auto;}
+.vision-lines h2{font-size:clamp(28px,4.4vw,44px); line-height:1.25; color:var(--pearl-faint);}
+.vision-lines h2 + h2{color:var(--pearl); margin-top:6px;}
+
+/* ============================================================
+   12 — GALLERY
+   ============================================================ */
+.gallery-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:18px;}
+@media(max-width:900px){.gallery-grid{grid-template-columns:1fr 1fr;}}
+@media(max-width:560px){.gallery-grid{grid-template-columns:1fr;}}
+.gallery-item{aspect-ratio:1/0.85; border:1px solid var(--line); border-radius:4px; overflow:hidden; position:relative; background:var(--bg-panel);}
+.gallery-item canvas{position:absolute; inset:0; width:100%; height:100%;}
+.gallery-cap{position:absolute; bottom:0; left:0; right:0; padding:12px 14px; background:linear-gradient(to top, rgba(3,4,7,0.9), transparent); font-family:var(--f-mono); font-size:11px; letter-spacing:0.08em; color:var(--pearl-dim);}
+
+/* ============================================================
+   13 — JOIN KINET (terminal form)
+   ============================================================ */
+#join{background:var(--bg-raise); border-top:1px solid var(--line);}
+.join-grid{display:grid; grid-template-columns:0.9fr 1.1fr; gap:56px; align-items:flex-start;}
+@media(max-width:900px){.join-grid{grid-template-columns:1fr;}}
+.terminal{border:1px solid var(--line-strong); border-radius:6px; background:#050710; overflow:hidden; box-shadow:0 0 60px rgba(0,229,255,0.04);}
+.terminal-bar{display:flex; align-items:center; gap:8px; padding:12px 16px; border-bottom:1px solid var(--line); font-family:var(--f-mono); font-size:11px; color:var(--pearl-faint); letter-spacing:0.08em;}
+.terminal-bar .tdot{width:8px; height:8px; border-radius:50%; background:var(--line-strong);}
+.terminal-body{padding:26px;}
+.tfield{margin-bottom:20px;}
+.tfield label{display:block; font-family:var(--f-mono); font-size:11px; letter-spacing:0.1em; color:var(--cyan); margin-bottom:8px;}
+.tfield label::before{content:"> "; color:var(--pearl-faint);}
+.tfield input, .tfield select, .tfield textarea{
+  width:100%; background:rgba(255,255,255,0.02); border:1px solid var(--line-strong); border-radius:2px;
+  padding:11px 12px; color:var(--pearl); font-family:var(--f-mono); font-size:13px;
+  transition:border-color .2s;
+}
+.tfield input:focus, .tfield select:focus, .tfield textarea:focus{outline:none; border-color:var(--cyan);}
+.tfield textarea{resize:vertical; min-height:80px;}
+.terminal-body .btn-primary{width:100%; justify-content:center; margin-top:6px;}
+.tsent{display:none; font-family:var(--f-mono); font-size:13px; color:var(--cyan); padding:8px 0 0;}
+.tsent.show{display:block;}
+
+/* ============================================================
+   14 — FOOTER
+   ============================================================ */
+footer{padding:60px 0 40px; border-top:1px solid var(--line);}
+.footer-inner{display:flex; justify-content:space-between; align-items:flex-end; flex-wrap:wrap; gap:24px;}
+.footer-brand .mark{font-family:var(--f-display); font-size:24px; font-weight:700;}
+.footer-brand p{font-family:var(--f-mono); font-size:12px; color:var(--pearl-faint); margin-top:8px;}
+.footer-flow{font-family:var(--f-mono); font-size:11px; letter-spacing:0.12em; color:var(--pearl-faint);}
+.footer-flow b{color:var(--cyan); font-weight:500;}
+
+.tag-conceptual{
+  position:fixed; bottom:18px; right:18px; z-index:150;
+  font-family:var(--f-mono); font-size:9.5px; letter-spacing:0.08em; color:var(--pearl-faint);
+  border:1px solid var(--line-strong); padding:6px 10px; border-radius:2px; background:rgba(6,8,13,0.7);
+  backdrop-filter:blur(6px);
+}
+@media(max-width:720px){.tag-conceptual{display:none;}}
+</style>
+</head>
+<body>
+
+<div class="tag-conceptual">CONCEPTUAL PROTOTYPE — ACADEMIC PROJECT</div>
+
+<!-- ================= NAVBAR ================= -->
+<nav id="navbar">
+  <div class="wrap nav-inner">
+    <a href="#hero" class="nav-brand">
+      <span class="mark">KINET</span>
+      <span class="sub">IRIS SYSTEMS</span>
+    </a>
+    <div class="nav-links">
+      <a href="#hero">PROJECT</a>
+      <a href="#problem">THE PROBLEM</a>
+      <a href="#engine">ENGINE</a>
+      <a href="#how">HOW IT WORKS</a>
+      <a href="#team">TEAM</a>
+    </div>
+    <div class="nav-cta">
+      <a href="#join" class="btn btn-primary" style="padding:10px 20px;">JOIN KINET</a>
+      <button class="nav-toggle" id="navToggle" aria-label="Menu"><span></span><span></span><span></span></button>
+    </div>
+  </div>
+</nav>
+
+<div id="mobile-menu">
+  <a href="#hero">PROJECT</a>
+  <a href="#problem">THE PROBLEM</a>
+  <a href="#engine">ENGINE</a>
+  <a href="#how">HOW IT WORKS</a>
+  <a href="#team">TEAM</a>
+  <a href="#join" class="btn btn-primary">JOIN KINET</a>
+</div>
+
+<!-- ================= 02 HERO ================= -->
+<section id="hero">
+  <div class="grid-bg"></div>
+  <div class="wrap hero-grid">
+    <div class="hero-copy">
+      <div class="eyebrow">IRIS SYSTEMS / INGENIERÍA APLICADA</div>
+      <h1 class="hero-title">KINET</h1>
+      <div class="hero-tagline">Inteligencia Postural Adaptativa</div>
+      <p class="hero-quote">No solo detectamos una mala postura.<br>Aprendemos cuándo realmente representa un riesgo.</p>
+      <div class="hero-actions">
+        <a href="#problem" class="btn btn-primary">EXPLORAR KINET</a>
+        <a href="#join" class="btn btn-ghost">UNIRME AL PROYECTO</a>
+      </div>
+      <div class="hero-flow"><b>DETECTAR</b>&nbsp;→&nbsp;<b>COMPRENDER</b>&nbsp;→&nbsp;<b>ADAPTAR</b></div>
+    </div>
+
+    <div class="hero-visual">
+      <div id="heroScene"></div>
+      <div class="hud-corner hud-tl"><span class="lbl">KINET / ANÁLISIS EN VIVO</span></div>
+      <div class="hud-panel">
+        <div class="hud-metric"><div class="k">ÁNGULO</div><div class="v cyan" id="hudAngle">18.4°</div></div>
+        <div class="hud-metric"><div class="k">EXPOSICIÓN</div><div class="v">BAJA</div></div>
+        <div class="hud-metric"><div class="k">EVENTOS</div><div class="v" id="hudEvents">07</div></div>
+        <div class="hud-metric"><div class="k">SESIÓN</div><div class="v" id="hudSession">42:18</div></div>
+        <div class="hud-metric"><div class="k">RIESGO</div><div class="v amber" id="hudRiskLabel">BAJO</div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 02b SIMULADOR DE RIESGO POSTURAL ================= -->
+<section id="simulador">
+  <div class="wrap">
+    <div class="section-head reveal">
+      <div class="eyebrow">SIMULADOR DE RIESGO POSTURAL</div>
+      <h2 style="margin-top:16px;">Ajusta el ángulo, observa el impacto.</h2>
+      <p>Estimación conceptual de carga cervical según ángulo de inclinación, basada en referencias de literatura biomecánica. No constituye un diagnóstico médico.</p>
+    </div>
+
+    <div class="sim-grid reveal">
+      <div class="sim-panel">
+        <div class="sim-slider-head">
+          <span class="tag-mono">ÁNGULO CERVICAL</span>
+          <span class="sim-angle-readout" id="simAngleOut">18°</span>
+        </div>
+        <input type="range" id="simSlider" min="10" max="50" step="1" value="18" class="sim-range">
+        <div class="sim-range-labels"><span>10°</span><span>30°</span><span>50°</span></div>
+
+        <div class="sim-results">
+          <div class="sim-result-card">
+            <div class="k">CARGA EN LA COLUMNA</div>
+            <div class="v" id="simLoad">9.2 <span class="unit">Kg</span></div>
+          </div>
+          <div class="sim-result-card">
+            <div class="k">NIVEL DE RIESGO</div>
+            <div class="v" id="simRisk">BAJO</div>
+          </div>
+        </div>
+        <div class="sim-note">Referencia conceptual inspirada en estudios de carga cervical (Hansraj, 2014). Uso exclusivamente educativo.</div>
+      </div>
+
+      <div class="sim-panel dash-biomech">
+        <div class="tag-mono" style="margin-bottom:18px;">DASHBOARD BIOMECÁNICO</div>
+        <div class="biomech-card">
+          <div class="bc-icon">◎</div>
+          <div>
+            <div class="k">ÁNGULO CÉRVICO-CRANEAL</div>
+            <div class="v" id="dbAngle">18°</div>
+          </div>
+        </div>
+        <div class="biomech-card">
+          <div class="bc-icon">▤</div>
+          <div>
+            <div class="k">CARGA ACUMULADA</div>
+            <div class="v" id="dbLoad">9.2 Kg</div>
+          </div>
+        </div>
+        <div class="biomech-card">
+          <div class="bc-icon">◍</div>
+          <div>
+            <div class="k">ESTADO DEL USUARIO</div>
+            <div class="v" id="dbState">Monitoreo activo</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 02c FLUJO DEL MOTOR KINET ================= -->
+<section id="motor-flujo">
+  <div class="wrap">
+    <div class="section-head reveal" style="margin-left:auto; margin-right:auto; text-align:center;">
+      <div class="eyebrow" style="justify-content:center;">FLUJO DEL MOTOR KINET</div>
+      <h2 style="margin-top:16px;">De la señal cruda a la decisión contextual.</h2>
+    </div>
+    <div class="mf-grid">
+      <div class="mf-card reveal reveal-delay1">
+        <div class="mf-num">01</div>
+        <h3>Detección</h3>
+        <p>Captura de landmarks corporales y ángulo cérvico-craneal en tiempo real.</p>
+      </div>
+      <div class="mf-card reveal reveal-delay2">
+        <div class="mf-num">02</div>
+        <h3>Contexto</h3>
+        <p>Tiempo de exposición, frecuencia, repetición y línea base postural.</p>
+      </div>
+      <div class="mf-card reveal reveal-delay3">
+        <div class="mf-num">03</div>
+        <h3>Umbral Adaptativo</h3>
+        <p>El umbral de riesgo se ajusta según el contexto acumulado de la sesión.</p>
+      </div>
+      <div class="mf-card reveal reveal-delay4">
+        <div class="mf-num">04</div>
+        <h3>Feedback</h3>
+        <p>Retroalimentación proporcional al nivel de riesgo detectado.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 03 THE PROBLEM ================= -->
+<section id="problem">
+  <div class="wrap">
+
+    <div class="section-head reveal">
+      <div class="eyebrow">THE PROBLEM</div>
+      <h2 style="margin-top:16px;">Una mala postura no siempre significa un riesgo.</h2>
+      <p>Los sistemas tradicionales interpretan la postura como un valor aislado. KINET la interpreta como un proceso.</p>
+    </div>
+
+    <div class="problem-split reveal">
+      <div class="problem-col">
+        <div class="tag">TRADITIONAL APPROACH</div>
+        <div class="flow-rigid">
+          <div class="flow-node">POSTURE</div>
+          <div class="flow-arrow">↓</div>
+          <div class="flow-node">ANGLE &gt; LIMIT</div>
+          <div class="flow-arrow">↓</div>
+          <div class="flow-node alert">ALERT</div>
+        </div>
+      </div>
+      <div class="problem-col kinet">
+        <div class="tag">KINET</div>
+        <div class="kinet-inputs" style="margin-bottom:20px;">
+          <span class="kinet-chip">ANGLE</span>
+          <span class="kinet-chip">TIME</span>
+          <span class="kinet-chip">FREQUENCY</span>
+          <span class="kinet-chip">REPETITION</span>
+          <span class="kinet-chip">SESSION</span>
+          <span class="kinet-chip">BASELINE</span>
+        </div>
+        <div class="flow-rigid">
+          <div class="flow-arrow" style="padding-left:0;">↓</div>
+          <div class="flow-node">CONTEXT</div>
+          <div class="flow-arrow">↓</div>
+          <div class="flow-node risk">RISK</div>
+          <div class="flow-arrow">↓</div>
+          <div class="flow-node adaptive">ADAPTIVE FEEDBACK</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 04 CONVERGENCE ================= -->
+<section id="converge">
+  <div class="wrap">
+    <div class="section-head reveal">
+      <div class="eyebrow">CONTEXT MODEL</div>
+      <h2 style="margin-top:16px;">Your posture is not a number.</h2>
+      <p>Una postura debe interpretarse dentro de su contexto.</p>
+    </div>
+    <div class="converge-stage reveal">
+      <canvas id="convergeCanvas"></canvas>
+      <div class="converge-core">
+        <div class="ring"><span class="lbl">KINET<br>CORE</span></div>
+      </div>
+    </div>
+    <div class="converge-out reveal">CONTEXTUAL RISK</div>
+  </div>
+</section>
+
+<!-- ================= 05 ENGINE ================= -->
+<section id="engine">
+  <div class="wrap">
+    <div class="section-head reveal" style="margin-left:auto; margin-right:auto; text-align:center;">
+      <div class="eyebrow" style="justify-content:center;">THE KINET ENGINE</div>
+      <h2 style="margin-top:16px;">From posture data to contextual insight.</h2>
+    </div>
+    <div class="engine-canvas-wrap reveal">
+      <canvas id="engineCanvas"></canvas>
+    </div>
+    <div class="engine-legend reveal">
+      <span><i class="dot" style="background:var(--cyan);"></i>Signal inputs</span>
+      <span><i class="dot" style="background:var(--cobalt);"></i>Contextual analysis</span>
+      <span><i class="dot" style="background:var(--amber);"></i>Risk state</span>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 06 ADAPTIVE FEEDBACK ================= -->
+<section id="feedback">
+  <div class="wrap">
+    <div class="section-head reveal" style="margin-left:auto; margin-right:auto; text-align:center;">
+      <div class="eyebrow" style="justify-content:center;">ADAPTIVE FEEDBACK</div>
+      <h2 style="margin-top:16px;">Not every alert should feel the same.</h2>
+    </div>
+
+    <div class="feedback-timeline reveal">
+      <div class="ft-step active" data-i="1"><div class="node"></div>DETECT</div>
+      <div class="ft-line"></div>
+      <div class="ft-step" data-i="2"><div class="node"></div>CONTEXT</div>
+      <div class="ft-line"></div>
+      <div class="ft-step" data-i="3"><div class="node"></div>EXPOSURE</div>
+      <div class="ft-line"></div>
+      <div class="ft-step" data-i="4"><div class="node"></div>RISK</div>
+      <div class="ft-line"></div>
+      <div class="ft-step" data-i="5"><div class="node"></div>FEEDBACK</div>
+    </div>
+
+    <div class="risk-states reveal">
+      <button class="risk-card active" data-level="low">
+        <div class="rc-level">LOW</div>
+        <h3>Monitoring</h3>
+        <p>El sistema observa el contexto sin intervenir. Baseline estable.</p>
+      </button>
+      <button class="risk-card" data-level="moderate">
+        <div class="rc-level">MODERATE</div>
+        <h3>Soft Reminder</h3>
+        <p>Exposición acumulada detectada. Se sugiere un ajuste leve.</p>
+      </button>
+      <button class="risk-card" data-level="high">
+        <div class="rc-level">HIGH</div>
+        <h3>Stronger Feedback</h3>
+        <p>Riesgo contextual elevado y sostenido. Feedback más directo.</p>
+      </button>
+    </div>
+
+    <div class="kinet-toast reveal" id="toast">
+      <div class="dot-live" id="toastDot" style="background:var(--cyan);"></div>
+      <div>
+        <div class="tt">KINET</div>
+        <div class="tm" id="toastMsg">Postural exposure detected. Context is being evaluated…</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 07 HOW IT WORKS ================= -->
+<section id="how">
+  <div class="wrap">
+    <div class="section-head reveal">
+      <div class="eyebrow">HOW IT WORKS</div>
+      <h2 style="margin-top:16px;">A four-stage interpretation pipeline.</h2>
+    </div>
+    <div class="hiw-grid">
+      <div class="hiw-card reveal reveal-delay1">
+        <div class="hiw-num">01</div>
+        <h3>Detect</h3>
+        <div class="hiw-list">
+          <div>Body landmarks</div>
+          <div class="ar">↓</div>
+          <div>Camera / Sensors</div>
+          <div class="ar">↓</div>
+          <div>Postural data</div>
+        </div>
+      </div>
+      <div class="hiw-card reveal reveal-delay2">
+        <div class="hiw-num">02</div>
+        <h3>Understand</h3>
+        <div class="hiw-list">
+          <div>Angle</div><div>Time</div><div>Frequency</div><div>Repetition</div>
+        </div>
+      </div>
+      <div class="hiw-card reveal reveal-delay3">
+        <div class="hiw-num">03</div>
+        <h3>Interpret</h3>
+        <div class="hiw-list">
+          <div>Context</div>
+          <div class="ar">↓</div>
+          <div>Exposure</div>
+          <div class="ar">↓</div>
+          <div>Risk</div>
+        </div>
+      </div>
+      <div class="hiw-card reveal reveal-delay4">
+        <div class="hiw-num">04</div>
+        <h3>Adapt</h3>
+        <div class="hiw-list">
+          <div>Contextual feedback</div>
+          <div class="ar">↓</div>
+          <div>User response</div>
+          <div class="ar">↓</div>
+          <div>System adapts</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 08 DASHBOARD ================= -->
+<section id="dashboard">
+  <div class="wrap">
+    <div class="section-head reveal">
+      <div class="eyebrow">LIVE DASHBOARD</div>
+      <h2 style="margin-top:16px;">KINET / Live Session</h2>
+      <p>Maqueta conceptual de la interfaz que acompañaría una sesión de análisis.</p>
+    </div>
+
+    <div class="dash-frame reveal">
+      <div class="dash-bar">
+        <div class="dash-title">SESSION_042 · BASELINE: ACTIVE</div>
+        <div class="dash-badges">
+          <span class="badge live"><i class="dot"></i>LIVE</span>
+          <span class="badge analyzing"><i class="dot"></i>ANALYZING</span>
+          <span class="badge baseline"><i class="dot"></i>BASELINE ACTIVE</span>
+        </div>
+      </div>
+      <div class="dash-body">
+        <div class="dash-panel">
+          <div class="dash-graph-label">BODY TRACKING</div>
+          <div class="dash-track-canvas"><canvas id="trackCanvas"></canvas></div>
+        </div>
+        <div class="dash-panel" style="position:relative;">
+          <div class="dash-conceptual">CONCEPTUAL INTERFACE</div>
+          <div class="dash-metrics">
+            <div class="dm"><div class="k">ANGLE</div><div class="v cyan" id="dashAngle">18.4°</div></div>
+            <div class="dm"><div class="k">EXPOSURE</div><div class="v">LOW</div></div>
+            <div class="dm"><div class="k">POSTURAL EVENTS</div><div class="v" id="dashEvents">07</div></div>
+            <div class="dm"><div class="k">SESSION</div><div class="v" id="dashSession">42:18</div></div>
+          </div>
+          <div class="dash-graph-label">POSTURAL LOAD / SESSION</div>
+          <div class="dash-graph"><canvas id="graphCanvas"></canvas></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 09 THE DIFFERENCE ================= -->
+<section id="difference">
+  <div class="wrap diff-wrap">
+    <div class="section-head reveal" style="margin-left:auto; margin-right:auto;">
+      <div class="eyebrow" style="justify-content:center;">THE DIFFERENCE</div>
+      <h2 style="margin-top:16px;">Two ways to read the same posture.</h2>
+    </div>
+
+    <div class="diff-toggle reveal">
+      <button class="diff-btn active" data-t="old">OLD APPROACH</button>
+      <button class="diff-btn" data-t="kinet">KINET</button>
+    </div>
+
+    <div class="diff-panel active" id="diff-old">
+      <div class="diff-flow">
+        <div class="flow-node">ANGLE</div>
+        <div class="flow-arrow">↓</div>
+        <div class="flow-node">THRESHOLD</div>
+        <div class="flow-arrow">↓</div>
+        <div class="flow-node alert">ALERT</div>
+      </div>
+    </div>
+    <div class="diff-panel" id="diff-kinet">
+      <div class="diff-inputs-row">
+        <span class="kinet-chip">ANGLE</span><span class="kinet-chip">TIME</span><span class="kinet-chip">FREQUENCY</span>
+        <span class="kinet-chip">REPETITION</span><span class="kinet-chip">SESSION</span><span class="kinet-chip">BASELINE</span>
+      </div>
+      <div class="diff-flow" style="margin-top:18px;">
+        <div class="flow-arrow" style="padding-left:0;">↓</div>
+        <div class="flow-node">CONTEXT</div>
+        <div class="flow-arrow">↓</div>
+        <div class="flow-node risk" style="border-color:var(--amber); color:var(--amber);">RISK</div>
+        <div class="flow-arrow">↓</div>
+        <div class="flow-node adaptive" style="border-color:var(--cyan); color:var(--cyan);">ADAPTIVE FEEDBACK</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 10 IRIS SYSTEMS ================= -->
+<section id="team">
+  <div class="wrap">
+    <div class="section-head reveal">
+      <div class="eyebrow">WHO WE ARE</div>
+      <h2 style="margin-top:16px;">Iris Systems</h2>
+      <p>Equipo de Ingeniería Aplicada que explora soluciones tecnológicas mediante inteligencia artificial, análisis de datos y sistemas adaptativos.</p>
+    </div>
+    <div class="team-grid">
+      <div class="team-card reveal reveal-delay1">
+        <div class="team-photo"><svg viewBox="0 0 24 24" fill="none" stroke="#00E5FF" stroke-width="1"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8"/></svg></div>
+        <div class="team-info"><div class="tn">TEAM MEMBER</div><div class="tr">ROLE</div></div>
+      </div>
+      <div class="team-card reveal reveal-delay2">
+        <div class="team-photo"><svg viewBox="0 0 24 24" fill="none" stroke="#00E5FF" stroke-width="1"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8"/></svg></div>
+        <div class="team-info"><div class="tn">TEAM MEMBER</div><div class="tr">ROLE</div></div>
+      </div>
+      <div class="team-card reveal reveal-delay3">
+        <div class="team-photo"><svg viewBox="0 0 24 24" fill="none" stroke="#00E5FF" stroke-width="1"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8"/></svg></div>
+        <div class="team-info"><div class="tn">TEAM MEMBER</div><div class="tr">ROLE</div></div>
+      </div>
+      <div class="team-card reveal reveal-delay4">
+        <div class="team-photo"><svg viewBox="0 0 24 24" fill="none" stroke="#00E5FF" stroke-width="1"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8"/></svg></div>
+        <div class="team-info"><div class="tn">TEAM MEMBER</div><div class="tr">ROLE</div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 11 PROJECT VISION ================= -->
+<section id="vision">
+  <div class="wrap">
+    <div class="vision-flow reveal">
+      <span class="vnode">DETECT</span><span class="varrow">↓</span>
+      <span class="vnode">MEASURE</span><span class="varrow">↓</span>
+      <span class="vnode">UNDERSTAND</span><span class="varrow">↓</span>
+      <span class="vnode">ADAPT</span>
+    </div>
+    <div class="vision-lines reveal">
+      <h2>KINET doesn't just see posture.</h2>
+      <h2>It learns its context.</h2>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 12 GALLERY ================= -->
+<section id="gallery">
+  <div class="wrap">
+    <div class="section-head reveal">
+      <div class="eyebrow">VISUAL GALLERY</div>
+      <h2 style="margin-top:16px;">The visual language of KINET.</h2>
+    </div>
+    <div class="gallery-grid">
+      <div class="gallery-item reveal reveal-delay1"><canvas data-gallery="tracking"></canvas><div class="gallery-cap">POSTURAL TRACKING</div></div>
+      <div class="gallery-item reveal reveal-delay2"><canvas data-gallery="core"></canvas><div class="gallery-cap">KINET CORE</div></div>
+      <div class="gallery-item reveal reveal-delay3"><canvas data-gallery="vision"></canvas><div class="gallery-cap">COMPUTER VISION</div></div>
+      <div class="gallery-item reveal reveal-delay1"><canvas data-gallery="risk"></canvas><div class="gallery-cap">CONTEXTUAL RISK</div></div>
+      <div class="gallery-item reveal reveal-delay2"><canvas data-gallery="adaptive"></canvas><div class="gallery-cap">ADAPTIVE FEEDBACK</div></div>
+      <div class="gallery-item reveal reveal-delay3"><canvas data-gallery="dash"></canvas><div class="gallery-cap">LIVE DASHBOARD</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 13 JOIN KINET ================= -->
+<section id="join">
+  <div class="wrap join-grid">
+    <div class="reveal">
+      <div class="eyebrow">JOIN KINET</div>
+      <h2 style="margin-top:16px; font-size:clamp(28px,4vw,42px);">Be part of the next layer of postural intelligence.</h2>
+      <p style="color:var(--pearl-dim); margin-top:16px; max-width:400px; line-height:1.6;">Iris Systems está construyendo KINET como proyecto de Ingeniería Aplicada. Si quieres colaborar, envía una señal.</p>
+      <div class="hero-flow" style="margin-top:32px;"><b>DETECT</b>&nbsp;→&nbsp;<b>UNDERSTAND</b>&nbsp;→&nbsp;<b>ADAPT</b></div>
+    </div>
+
+    <div class="terminal reveal">
+      <div class="terminal-bar"><span class="tdot"></span><span class="tdot"></span><span class="tdot"></span>&nbsp;&nbsp;kinet://join</div>
+      <div class="terminal-body">
+        <form id="joinForm">
+          <div class="tfield"><label>NAME</label><input type="text" placeholder="your name" required></div>
+          <div class="tfield"><label>EMAIL</label><input type="email" placeholder="you@domain.com" required></div>
+          <div class="tfield"><label>INTEREST</label>
+            <select>
+              <option>Engineering</option>
+              <option>Computer Vision</option>
+              <option>Data / AI</option>
+              <option>Design</option>
+              <option>Other</option>
+            </select>
+          </div>
+          <div class="tfield"><label>MESSAGE</label><textarea placeholder="tell us why you'd like to join…"></textarea></div>
+          <button type="submit" class="btn btn-primary">SEND SIGNAL</button>
+          <div class="tsent" id="tsent">&gt; signal received. transmission logged.</div>
+        </form>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 14 FOOTER ================= -->
+<footer>
+  <div class="wrap footer-inner">
+    <div class="footer-brand">
+      <div class="mark">KINET</div>
+      <p>Adaptive Postural Intelligence · Iris Systems</p>
+    </div>
+    <div class="footer-flow"><b>DETECT</b> → <b>UNDERSTAND</b> → <b>ADAPT</b></div>
+  </div>
+</footer>
+
+<script>
+/* ============================================================
+   Shared utilities
+   ============================================================ */
+function fitCanvas(c){
+  const dpr = Math.min(window.devicePixelRatio||1, 2);
+  const r = c.getBoundingClientRect();
+  c.width = Math.max(1, r.width*dpr);
+  c.height = Math.max(1, r.height*dpr);
+  const ctx = c.getContext('2d');
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  return {ctx, w:r.width, h:r.height};
+}
+const COLORS = {cyan:'#00E5FF', cobalt:'#1A56DB', amber:'#FF9F1C', red:'#E11D48', pearl:'#F8FAFC'};
+
+/* ============================================================
+   Navbar
+   ============================================================ */
+const navbar = document.getElementById('navbar');
+window.addEventListener('scroll', ()=>{
+  navbar.classList.toggle('scrolled', window.scrollY > 40);
+}, {passive:true});
+
+const navToggle = document.getElementById('navToggle');
+const mobileMenu = document.getElementById('mobile-menu');
+navToggle.addEventListener('click', ()=> mobileMenu.classList.toggle('open'));
+mobileMenu.querySelectorAll('a').forEach(a=> a.addEventListener('click', ()=> mobileMenu.classList.remove('open')));
+
+/* ============================================================
+   Scroll reveal
+   ============================================================ */
+const io = new IntersectionObserver((entries)=>{
+  entries.forEach(e=>{ if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target); } });
+}, {threshold:0.15});
+document.querySelectorAll('.reveal').forEach(el=> io.observe(el));
+
+/* ============================================================
+   HERO — Modelo 3D real (GLTFLoader) con materiales y luces KINET
+   ============================================================ */
+(function(){
+  const mount = document.getElementById('heroScene');
+  if(!mount || typeof THREE === 'undefined') return;
+
+  const CYAN = new THREE.Color(0x00E5FF);
+  const COBALT = new THREE.Color(0x1A56DB);
+  const AMBER = new THREE.Color(0xFF9F1C);
+
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 100);
+
+  const renderer = new THREE.WebGLRenderer({ antialias:true, alpha:true });
+  renderer.setClearColor(0x000000, 0);
+  renderer.outputEncoding = THREE.sRGBEncoding;
+  mount.appendChild(renderer.domElement);
+
+  function sizeRenderer(){
+    const r = mount.getBoundingClientRect();
+    const w = Math.max(1, r.width), h = Math.max(1, r.height);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio||1, 2));
+    renderer.setSize(w, h, false);
+    camera.aspect = w/h;
+    camera.updateProjectionMatrix();
+  }
+
+  // ---- lighting: direccional + puntuales cian y ámbar hacia columna/cuello ----
+  const keyLight = new THREE.DirectionalLight(0xffffff, 0.55);
+  keyLight.position.set(2, 4, 3);
+  scene.add(keyLight);
+  scene.add(new THREE.AmbientLight(0x1a2540, 0.65));
+
+  const spineLight = new THREE.PointLight(0x00E5FF, 2.2, 8, 2);
+  scene.add(spineLight);
+  const neckLight = new THREE.PointLight(0xFF9F1C, 1.6, 6, 2);
+  scene.add(neckLight);
+  const rimLight = new THREE.PointLight(0x1A56DB, 1.4, 10, 2);
+  rimLight.position.set(-2, 1, -2);
+  scene.add(rimLight);
+
+  // ---- grupo raíz del modelo ----
+  const modelGroup = new THREE.Group();
+  scene.add(modelGroup);
+
+  // ---- controles de órbita: rotación suave con el ratón ----
+  let controls = null;
+  function setupControls(){
+    if(typeof THREE.OrbitControls === 'undefined') return;
+    controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.06;
+    controls.enablePan = false;
+    controls.minDistance = 1.5;
+    controls.maxDistance = 8;
+    controls.maxPolarAngle = Math.PI * 0.62;
+    controls.minPolarAngle = Math.PI * 0.18;
+    controls.autoRotate = true;
+    controls.autoRotateSpeed = 0.5;
+    controls.target.set(0, 1.1, 0);
+  }
+
+  // ---- aplica la estética KINET a los materiales del modelo ----
+  function applyKinetMaterials(root){
+    root.traverse((child)=>{
+      if(!child.isMesh) return;
+
+      // material base: cobalto oscuro semitransparente, tipo escaneo biomecánico
+      const base = new THREE.MeshPhysicalMaterial({
+        color: COBALT,
+        transparent: true,
+        opacity: 0.55,
+        metalness: 0.35,
+        roughness: 0.25,
+        transmission: 0.15,
+        emissive: COBALT,
+        emissiveIntensity: 0.12,
+        clearcoat: 0.4,
+        side: THREE.DoubleSide,
+      });
+      child.material = base;
+      child.castShadow = false;
+      child.receiveShadow = false;
+
+      // overlay de wireframe brillante en cian, montado como hijo
+      const wireGeo = child.geometry;
+      const wireMat = new THREE.MeshBasicMaterial({
+        color: CYAN, wireframe: true, transparent: true, opacity: 0.35,
+        blending: THREE.AdditiveBlending, depthWrite: false,
+      });
+      const wireMesh = new THREE.Mesh(wireGeo, wireMat);
+      wireMesh.renderOrder = 2;
+      child.add(wireMesh);
+      child._kinetWire = wireMat;
+    });
+  }
+
+  // ---- puntos emissive (neón) distribuidos sobre la caja del modelo para simular escaneo ----
+  function addEmissiveScanPoints(root){
+    const box = new THREE.Box3().setFromObject(root);
+    const size = new THREE.Vector3(); box.getSize(size);
+    const center = new THREE.Vector3(); box.getCenter(center);
+
+    const count = 140;
+    const positions = new Float32Array(count*3);
+    for(let i=0;i<count;i++){
+      // concentra puntos hacia el eje vertical central (columna/cuello) con algo de dispersión
+      const t = Math.random();
+      const y = box.min.y + t*size.y;
+      const spread = 0.12 + (1-Math.abs(t-0.7)*2.2)*0.10; // más ceñido cerca del cuello (t~0.85) y columna
+      const ang = Math.random()*Math.PI*2;
+      const rad = Math.random()*Math.max(0.02, spread)*size.x*0.5;
+      const x = center.x + Math.cos(ang)*rad;
+      const z = center.z + Math.sin(ang)*rad*0.6;
+      positions[i*3]=x; positions[i*3+1]=y; positions[i*3+2]=z;
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(positions,3));
+    const mat = new THREE.PointsMaterial({
+      color: CYAN, size: 0.018, transparent:true, opacity:0.9,
+      blending: THREE.AdditiveBlending, depthWrite:false, sizeAttenuation:true,
+    });
+    const pts = new THREE.Points(geo, mat);
+    modelGroup.add(pts);
+    return {pts, box, center, size};
+  }
+
+  let modelInfo = null;
+  let loadFailed = false;
+
+  function frameCameraToModel(box){
+    const size = new THREE.Vector3(); box.getSize(size);
+    const center = new THREE.Vector3(); box.getCenter(center);
+    const maxDim = Math.max(size.x, size.y, size.z);
+    const dist = maxDim * 1.9;
+    // ángulo de tres cuartos para destacar la postura sentada
+    camera.position.set(center.x + dist*0.62, center.y + size.y*0.28, center.z + dist*0.72);
+    camera.lookAt(center.x, center.y*0.9, center.z);
+    if(controls){ controls.target.set(center.x, center.y*0.9, center.z); controls.update(); }
+
+    spineLight.position.set(center.x, center.y + size.y*0.15, center.z + maxDim*0.3);
+    neckLight.position.set(center.x, center.y + size.y*0.42, center.z + maxDim*0.25);
+  }
+
+  function loadModel(){
+    if(typeof THREE.GLTFLoader === 'undefined'){ showFallback(); return; }
+    const loader = new THREE.GLTFLoader();
+    loader.load('./kinet_model.glb', (gltf)=>{
+      const root = gltf.scene;
+      applyKinetMaterials(root);
+      modelGroup.add(root);
+      const info = addEmissiveScanPoints(root);
+      modelInfo = info;
+      frameCameraToModel(info.box);
+    }, undefined, (err)=>{
+      console.warn('KINET: no se pudo cargar ./kinet_model.glb', err);
+      showFallback();
+    });
+  }
+
+  // ---- fallback visual si el .glb no está disponible junto al HTML ----
+  function showFallback(){
+    loadFailed = true;
+    const geo = new THREE.IcosahedronGeometry(1, 2);
+    const mat = new THREE.MeshBasicMaterial({ color: CYAN, wireframe:true, transparent:true, opacity:0.5 });
+    const mesh = new THREE.Mesh(geo, mat);
+    modelGroup.add(mesh);
+    const box = new THREE.Box3().setFromObject(mesh);
+    frameCameraToModel(box);
+    const label = document.createElement('div');
+    label.style.cssText = 'position:absolute;bottom:64px;left:0;right:0;text-align:center;font-family:"JetBrains Mono",monospace;font-size:10.5px;letter-spacing:.08em;color:rgba(248,250,252,0.45);pointer-events:none;';
+    label.textContent = 'kinet_model.glb no encontrado junto al HTML — mostrando marcador de referencia';
+    mount.parentElement.appendChild(label);
+  }
+
+  sizeRenderer();
+  window.addEventListener('resize', sizeRenderer);
+  setupControls();
+  loadModel();
+
+  const clock = new THREE.Clock();
+  function animate(){
+    const t = clock.getElapsedTime();
+    if(controls) controls.update();
+
+    // pulso de las luces cian/ámbar simulando escaneo activo
+    spineLight.intensity = 1.9 + Math.sin(t*2.1)*0.5;
+    neckLight.intensity = 1.3 + Math.sin(t*1.7 + 1)*0.4;
+
+    if(modelInfo){
+      modelInfo.pts.rotation.y = Math.sin(t*0.15)*0.02;
+      modelInfo.pts.material.size = 0.016 + Math.sin(t*3)*0.004;
+    }
+
+    renderer.render(scene, camera);
+    requestAnimationFrame(animate);
+  }
+  animate();
+
+  // ---- expuesto para que el simulador de riesgo pueda teñir el escaneo ----
+  window.kinetSetRiskTint = function(level){
+    const color = level==='critical' ? '#E11D48' : (level==='moderate' ? '#FF9F1C' : '#00E5FF');
+    neckLight.color.set(color);
+    if(modelInfo) modelInfo.pts.material.color.set(color);
+  };
+
+  // fake live HUD counters
+  let angle=18.4, events=7, sec=42*60+18;
+  setInterval(()=>{
+    angle = (16 + Math.random()*6).toFixed(1);
+    document.getElementById('hudAngle').textContent = angle+'°';
+    sec += 1;
+    const mm = String(Math.floor(sec/60)).padStart(2,'0'), ss = String(sec%60).padStart(2,'0');
+    document.getElementById('hudSession').textContent = mm+':'+ss;
+    if(Math.random()>0.85){ events++; document.getElementById('hudEvents').textContent = String(events).padStart(2,'0'); }
+  },1000);
+})();
+
+/* ============================================================
+   SIMULADOR DE RIESGO POSTURAL — ángulo cervical → carga (Kg) → riesgo
+   ============================================================ */
+(function(){
+  const slider = document.getElementById('simSlider');
+  if(!slider) return;
+
+  // puntos de referencia conceptuales (carga cervical aproximada según ángulo)
+  // inspirados en el patrón reportado por Hansraj (2014) — uso ilustrativo, no clínico.
+  const REF = [ [0,5], [15,12], [30,18], [45,22], [60,27] ];
+  function loadForAngle(angle){
+    for(let i=0;i<REF.length-1;i++){
+      const [a0,k0] = REF[i], [a1,k1] = REF[i+1];
+      if(angle>=a0 && angle<=a1){
+        const f = (angle-a0)/(a1-a0);
+        return k0 + (k1-k0)*f;
+      }
+    }
+    return REF[REF.length-1][1];
+  }
+  function riskFor(load){
+    if(load < 14) return {level:'low', label:'BAJO'};
+    if(load < 20) return {level:'moderate', label:'MODERADO'};
+    return {level:'critical', label:'CRÍTICO'};
+  }
+
+  const els = {
+    angleOut: document.getElementById('simAngleOut'),
+    load: document.getElementById('simLoad'),
+    risk: document.getElementById('simRisk'),
+    dbAngle: document.getElementById('dbAngle'),
+    dbLoad: document.getElementById('dbLoad'),
+    dbState: document.getElementById('dbState'),
+    hudRiskLabel: document.getElementById('hudRiskLabel'),
+    simGrid: document.querySelector('.sim-grid'),
+  };
+  const stateMsg = { low:'Monitoreo activo', moderate:'Exposición en aumento', critical:'Intervención recomendada' };
+
+  function update(){
+    const angle = Number(slider.value);
+    const load = loadForAngle(angle);
+    const risk = riskFor(load);
+
+    els.angleOut.textContent = angle+'°';
+    els.load.innerHTML = load.toFixed(1)+' <span class="unit">Kg</span>';
+    els.risk.textContent = risk.label;
+    els.dbAngle.textContent = angle+'°';
+    els.dbLoad.textContent = load.toFixed(1)+' Kg';
+    els.dbState.textContent = stateMsg[risk.level];
+    if(els.hudRiskLabel) els.hudRiskLabel.textContent = risk.label;
+
+    els.simGrid.classList.remove('risk-low','risk-moderate','risk-critical');
+    els.simGrid.classList.add('risk-'+risk.level);
+
+    if(window.kinetSetRiskTint) window.kinetSetRiskTint(risk.level);
+  }
+
+  slider.addEventListener('input', update);
+  update();
+})();
+
+/* ============================================================
+   CONVERGENCE — inputs orbiting & flowing into the core
+   ============================================================ */
+(function(){
+  const canvas = document.getElementById('convergeCanvas');
+  if(!canvas) return;
+  let dims = fitCanvas(canvas);
+  window.addEventListener('resize', ()=> dims = fitCanvas(canvas));
+  const labels = ['ANGLE','TIME','FREQUENCY','REPETITION','SESSION','BASELINE'];
+  let t=0;
+  function draw(){
+    t+=0.01;
+    const {ctx,w,h} = dims;
+    ctx.clearRect(0,0,w,h);
+    const cx=w/2, cy=h/2, R=Math.min(w,h)*0.38;
+    labels.forEach((lab,i)=>{
+      const a = (i/labels.length)*Math.PI*2 + t*0.15;
+      const x = cx + Math.cos(a)*R, y = cy + Math.sin(a)*R;
+
+      // connecting line with traveling particle
+      ctx.strokeStyle = 'rgba(0,229,255,0.18)';
+      ctx.lineWidth=1;
+      ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(cx,cy); ctx.stroke();
+
+      const prog = (t*0.6 + i*0.15) % 1;
+      const px = x + (cx-x)*prog, py = y + (cy-y)*prog;
+      ctx.beginPath(); ctx.arc(px,py,2.4,0,7);
+      ctx.fillStyle = COLORS.cyan; ctx.fill();
+
+      // node
+      ctx.beginPath(); ctx.arc(x,y,4,0,7);
+      ctx.fillStyle='rgba(0,229,255,0.15)'; ctx.fill();
+      ctx.beginPath(); ctx.arc(x,y,2.2,0,7);
+      ctx.fillStyle=COLORS.cyan; ctx.fill();
+
+      ctx.font = '10px JetBrains Mono, monospace';
+      ctx.fillStyle = 'rgba(248,250,252,0.55)';
+      ctx.textAlign = Math.cos(a)>0.2 ? 'left' : (Math.cos(a)<-0.2 ? 'right':'center');
+      const offx = Math.cos(a)*14, offy = Math.sin(a)*14;
+      ctx.fillText(lab, x+offx, y+offy);
+    });
+    // core glow
+    const g = ctx.createRadialGradient(cx,cy,0,cx,cy,70);
+    g.addColorStop(0,'rgba(0,229,255,0.12)'); g.addColorStop(1,'rgba(0,229,255,0)');
+    ctx.fillStyle=g; ctx.beginPath(); ctx.arc(cx,cy,70,0,7); ctx.fill();
+    requestAnimationFrame(draw);
+  }
+  draw();
+})();
+
+/* ============================================================
+   ENGINE — neural-network style node graph
+   ============================================================ */
+(function(){
+  const canvas = document.getElementById('engineCanvas');
+  if(!canvas) return;
+  let dims = fitCanvas(canvas);
+  window.addEventListener('resize', ()=> dims = fitCanvas(canvas));
+  const inputLabels = ['ANGLE','TIME','FREQUENCY','REPETITION','SESSION','BASELINE'];
+  let t=0;
+  function draw(){
+    t+=0.012;
+    const {ctx,w,h} = dims;
+    ctx.clearRect(0,0,w,h);
+    const inX = w*0.14, midX = w*0.5, outX = w*0.86;
+    const coreY = h*0.42, riskY = h*0.78;
+
+    const inputs = inputLabels.map((lab,i)=>({x:inX, y: (h*0.12) + i*(h*0.66)/(inputLabels.length-1), lab}));
+    const core = {x:midX, y:coreY};
+    const risk = {x:outX, y:riskY};
+
+    // input -> core
+    inputs.forEach((p,i)=>{
+      ctx.strokeStyle='rgba(0,229,255,0.16)'; ctx.lineWidth=1;
+      ctx.beginPath(); ctx.moveTo(p.x,p.y); ctx.lineTo(core.x,core.y); ctx.stroke();
+      const prog = (t*0.5+i*0.12)%1;
+      const px = p.x+(core.x-p.x)*prog, py=p.y+(core.y-p.y)*prog;
+      ctx.beginPath(); ctx.arc(px,py,2,0,7); ctx.fillStyle=COLORS.cyan; ctx.fill();
+
+      ctx.beginPath(); ctx.arc(p.x,p.y,3.5,0,7); ctx.fillStyle=COLORS.cyan; ctx.fill();
+      ctx.font='10px JetBrains Mono, monospace'; ctx.fillStyle='rgba(248,250,252,0.55)';
+      ctx.textAlign='left'; ctx.fillText(p.lab, p.x+10, p.y+3);
+    });
+
+    // core -> analysis node -> risk
+    const analysis = {x: (core.x+risk.x)/2, y: h*0.6};
+    [ [core,analysis], [analysis,risk] ].forEach(([a,b],idx)=>{
+      ctx.strokeStyle='rgba(26,86,219,0.35)'; ctx.lineWidth=1.4;
+      ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke();
+      const prog=(t*0.6+idx*0.3)%1;
+      const px=a.x+(b.x-a.x)*prog, py=a.y+(b.y-a.y)*prog;
+      ctx.beginPath(); ctx.arc(px,py,2.2,0,7); ctx.fillStyle=COLORS.cobalt; ctx.fill();
+    });
+
+    // core node
+    const pulse = 16 + Math.sin(t*2)*2;
+    let g = ctx.createRadialGradient(core.x,core.y,0,core.x,core.y,pulse*2.2);
+    g.addColorStop(0,'rgba(0,229,255,0.28)'); g.addColorStop(1,'rgba(0,229,255,0)');
+    ctx.fillStyle=g; ctx.beginPath(); ctx.arc(core.x,core.y,pulse*2.2,0,7); ctx.fill();
+    ctx.beginPath(); ctx.arc(core.x,core.y,pulse,0,7);
+    ctx.strokeStyle=COLORS.cyan; ctx.lineWidth=1.4; ctx.stroke();
+    ctx.font='11px JetBrains Mono, monospace'; ctx.fillStyle=COLORS.pearl; ctx.textAlign='center';
+    ctx.fillText('KINET CORE', core.x, core.y+4);
+
+    // analysis node
+    ctx.beginPath(); ctx.arc(analysis.x, analysis.y, 8, 0, 7);
+    ctx.fillStyle='rgba(26,86,219,0.25)'; ctx.fill();
+    ctx.strokeStyle=COLORS.cobalt; ctx.stroke();
+    ctx.font='9px JetBrains Mono, monospace'; ctx.fillStyle='rgba(248,250,252,0.7)';
+    ctx.fillText('CONTEXTUAL', analysis.x, analysis.y-16);
+    ctx.fillText('ANALYSIS', analysis.x, analysis.y-6);
+
+    // risk node
+    ctx.beginPath(); ctx.arc(risk.x, risk.y, 10, 0, 7);
+    ctx.fillStyle='rgba(255,159,28,0.2)'; ctx.fill();
+    ctx.strokeStyle=COLORS.amber; ctx.stroke();
+    ctx.font='10px JetBrains Mono, monospace'; ctx.fillStyle=COLORS.amber; ctx.textAlign='left';
+    ctx.fillText('RISK STATE', risk.x+16, risk.y+4);
+
+    requestAnimationFrame(draw);
+  }
+  draw();
+})();
+
+/* ============================================================
+   ADAPTIVE FEEDBACK — interactive risk states
+   ============================================================ */
+(function(){
+  const cards = document.querySelectorAll('.risk-card');
+  const toastDot = document.getElementById('toastDot');
+  const toastMsg = document.getElementById('toastMsg');
+  const steps = document.querySelectorAll('.ft-step');
+  const config = {
+    low:{color:COLORS.cyan, msg:'Postural exposure detected. Context is being evaluated…', step:3},
+    moderate:{color:COLORS.amber, msg:'Accumulated exposure rising. Soft reminder issued.', step:4},
+    high:{color:COLORS.red, msg:'Sustained contextual risk. Stronger feedback issued.', step:5},
+  };
+  cards.forEach(card=>{
+    card.addEventListener('click', ()=>{
+      cards.forEach(c=>c.classList.remove('active'));
+      card.classList.add('active');
+      const level = card.dataset.level;
+      const cfg = config[level];
+      toastDot.style.background = cfg.color;
+      toastMsg.textContent = cfg.msg;
+      steps.forEach(s=> s.classList.toggle('active', Number(s.dataset.i) <= cfg.step));
+    });
+  });
+})();
+
+/* ============================================================
+   DASHBOARD — body tracking + animated load graph
+   ============================================================ */
+(function(){
+  const tc = document.getElementById('trackCanvas');
+  if(tc){
+    let dims = fitCanvas(tc);
+    window.addEventListener('resize', ()=> dims = fitCanvas(tc));
+    const joints = {
+      head:[0.5,0.12], neck:[0.5,0.20],
+      shoulderL:[0.35,0.26], shoulderR:[0.65,0.26],
+      elbowL:[0.28,0.42], elbowR:[0.72,0.42],
+      handL:[0.32,0.56], handR:[0.68,0.56],
+      spine:[0.5,0.40], hip:[0.5,0.58],
+      hipL:[0.42,0.58], hipR:[0.58,0.58],
+      kneeL:[0.40,0.82], kneeR:[0.60,0.82],
+    };
+    const bones = [['head','neck'],['neck','shoulderL'],['neck','shoulderR'],['shoulderL','shoulderR'],
+      ['shoulderL','elbowL'],['elbowL','handL'],['shoulderR','elbowR'],['elbowR','handR'],
+      ['neck','spine'],['spine','hip'],['hip','hipL'],['hip','hipR'],['hipL','kneeL'],['hipR','kneeR']];
+    let t=0;
+    function draw(){
+      t+=0.015;
+      const {ctx,w,h}=dims;
+      ctx.clearRect(0,0,w,h);
+      ctx.strokeStyle='rgba(0,229,255,0.04)';
+      for(let y=0;y<h;y+=h/10){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke();}
+      const sway = Math.sin(t*0.7)*0.008;
+      const pos={};
+      for(const k in joints) pos[k]=[(joints[k][0]+sway)*w, joints[k][1]*h];
+      ctx.lineWidth=1.3;
+      bones.forEach(([a,b])=>{
+        ctx.strokeStyle='rgba(0,229,255,0.55)';
+        ctx.beginPath(); ctx.moveTo(...pos[a]); ctx.lineTo(...pos[b]); ctx.stroke();
+      });
+      for(const k in pos){
+        const [x,y]=pos[k];
+        ctx.beginPath(); ctx.arc(x,y,3,0,7); ctx.fillStyle=COLORS.cyan; ctx.fill();
+      }
+      requestAnimationFrame(draw);
+    }
+    draw();
+  }
+
+  const gc = document.getElementById('graphCanvas');
+  if(gc){
+    let dims = fitCanvas(gc);
+    window.addEventListener('resize', ()=> dims = fitCanvas(gc));
+    let data = Array.from({length:40},()=>Math.random()*0.3+0.2);
+    let t=0;
+    function draw(){
+      t+=1;
+      if(t%12===0){ data.shift(); data.push(Math.max(0.1,Math.min(0.9, data[data.length-1]+(Math.random()-0.45)*0.18))); }
+      const {ctx,w,h}=dims;
+      ctx.clearRect(0,0,w,h);
+      ctx.strokeStyle='rgba(255,255,255,0.05)';
+      for(let i=0;i<=4;i++){ const y=h*i/4; ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(w,y); ctx.stroke(); }
+      ctx.beginPath();
+      data.forEach((v,i)=>{
+        const x = i/(data.length-1)*w, y = h - v*h;
+        i===0? ctx.moveTo(x,y): ctx.lineTo(x,y);
+      });
+      ctx.strokeStyle=COLORS.cyan; ctx.lineWidth=1.6; ctx.stroke();
+      ctx.lineTo(w,h); ctx.lineTo(0,h); ctx.closePath();
+      const grad = ctx.createLinearGradient(0,0,0,h);
+      grad.addColorStop(0,'rgba(0,229,255,0.18)'); grad.addColorStop(1,'rgba(0,229,255,0)');
+      ctx.fillStyle=grad; ctx.fill();
+      requestAnimationFrame(draw);
+    }
+    draw();
+  }
+})();
+
+/* ============================================================
+   THE DIFFERENCE — toggle
+   ============================================================ */
+(function(){
+  const btns = document.querySelectorAll('.diff-btn');
+  btns.forEach(b=> b.addEventListener('click', ()=>{
+    btns.forEach(x=>x.classList.remove('active'));
+    b.classList.add('active');
+    document.querySelectorAll('.diff-panel').forEach(p=>p.classList.remove('active'));
+    document.getElementById('diff-'+b.dataset.t).classList.add('active');
+  }));
+})();
+
+/* ============================================================
+   GALLERY — 6 generative visual pieces
+   ============================================================ */
+(function(){
+  const items = document.querySelectorAll('[data-gallery]');
+  items.forEach(canvas=>{
+    let dims = fitCanvas(canvas);
+    window.addEventListener('resize', ()=> dims = fitCanvas(canvas));
+    const type = canvas.dataset.gallery;
+    let t=0;
+    function draw(){
+      t+=0.015;
+      const {ctx,w,h}=dims;
+      ctx.clearRect(0,0,w,h);
+      ctx.fillStyle='rgba(255,255,255,0.01)'; ctx.fillRect(0,0,w,h);
+
+      if(type==='tracking'){
+        for(let i=0;i<24;i++){
+          const a = i/24*Math.PI*2 + t;
+          const r = 30 + (i%5)*14;
+          const x = w/2+Math.cos(a)*r*0.9, y = h/2+Math.sin(a)*r*0.6;
+          ctx.beginPath(); ctx.arc(x,y,2,0,7); ctx.fillStyle=COLORS.cyan; ctx.fill();
+          if(i>0){
+            const pa=(i-1)/24*Math.PI*2+t, pr=30+((i-1)%5)*14;
+            const px=w/2+Math.cos(pa)*pr*0.9, py=h/2+Math.sin(pa)*pr*0.6;
+            ctx.strokeStyle='rgba(0,229,255,0.15)'; ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(px,py); ctx.stroke();
+          }
+        }
+      } else if(type==='core'){
+        const cx=w/2, cy=h/2;
+        for(let i=0;i<8;i++){
+          const rr = 20+i*10 + Math.sin(t+i)*3;
+          ctx.beginPath(); ctx.arc(cx,cy,rr,0,7);
+          ctx.strokeStyle = `rgba(0,229,255,${0.22-i*0.02})`; ctx.stroke();
+        }
+        ctx.beginPath(); ctx.arc(cx,cy,10,0,7); ctx.fillStyle=COLORS.cyan; ctx.fill();
+      } else if(type==='vision'){
+        ctx.strokeStyle='rgba(0,229,255,0.18)';
+        for(let x=0;x<w;x+=w/14){ ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,h); ctx.stroke(); }
+        for(let y=0;y<h;y+=h/10){ ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(w,y); ctx.stroke(); }
+        const bx = w*0.3+Math.sin(t)*10, by=h*0.3+Math.cos(t*0.8)*8;
+        ctx.strokeStyle=COLORS.amber; ctx.lineWidth=1.4;
+        ctx.strokeRect(bx,by,w*0.4,h*0.4);
+      } else if(type==='risk'){
+        const levels=[[COLORS.cyan,0.3],[COLORS.amber,0.6],[COLORS.red,0.85]];
+        levels.forEach(([c,frac],i)=>{
+          const bw = w*0.18;
+          const bx = w*0.25 + i*w*0.25;
+          const bh = h*0.6*frac;
+          ctx.fillStyle=c+'55';
+          ctx.fillRect(bx, h*0.75-bh, bw, bh);
+          ctx.strokeStyle=c; ctx.strokeRect(bx, h*0.75-bh, bw, bh);
+        });
+      } else if(type==='adaptive'){
+        const cx=w/2, cy=h/2;
+        const pulse = 20+Math.sin(t*2)*8;
+        ctx.beginPath(); ctx.arc(cx,cy,pulse,0,7);
+        ctx.strokeStyle='rgba(255,159,28,0.6)'; ctx.lineWidth=2; ctx.stroke();
+        ctx.beginPath(); ctx.arc(cx,cy,8,0,7); ctx.fillStyle=COLORS.amber; ctx.fill();
+      } else if(type==='dash'){
+        ctx.strokeStyle='rgba(0,229,255,0.4)'; ctx.beginPath();
+        for(let x=0;x<w;x++){ const y=h*0.6 - Math.sin(x*0.05+t*2)*h*0.15 - h*0.1; x===0?ctx.moveTo(x,y):ctx.lineTo(x,y); }
+        ctx.stroke();
+        ctx.strokeStyle='rgba(255,255,255,0.08)';
+        for(let y=0;y<h;y+=h/6){ ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(w,y); ctx.stroke(); }
+      }
+      requestAnimationFrame(draw);
+    }
+    draw();
+  });
+})();
+
+/* ============================================================
+   JOIN FORM
+   ============================================================ */
+(function(){
+  const form = document.getElementById('joinForm');
+  const sent = document.getElementById('tsent');
+  form.addEventListener('submit', (e)=>{
+    e.preventDefault();
+    sent.classList.add('show');
+    setTimeout(()=> sent.classList.remove('show'), 4000);
+    form.reset();
+  });
+})();
+</script>
+</body>
+</html>
