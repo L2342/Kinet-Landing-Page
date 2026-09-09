@@ -21,6 +21,8 @@ No abras `index.html` con doble clic: el modelo `.glb` necesita cargarse mediant
 ## Publicar en GitHub Pages
 
 1. Sube este contenido a un repositorio de GitHub.
-2. En `Settings > Pages`, selecciona `Deploy from a branch`.
-3. Selecciona la rama principal y la carpeta `/ (root)`.
-4. Guarda y espera a que GitHub genere la URL pública.
+2. En `Settings > Pages`, en `Build and deployment > Source`, selecciona `GitHub Actions` y guarda.
+3. Ve a `Actions` y espera a que termine `Deploy KINET to GitHub Pages`.
+4. La URL pública será `https://<usuario>.github.io/<repositorio>/`.
+
+La primera activación de Pages debe hacerse desde `Settings > Pages`. El `GITHUB_TOKEN` del workflow puede desplegar el sitio, pero no puede habilitar Pages por primera vez.
