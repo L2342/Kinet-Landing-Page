@@ -1390,10 +1390,12 @@ footer{position:relative; padding:64px 0 0; border-top:1px solid var(--line); ov
                 <line x1="120" y1="70" x2="120" y2="60"/>
                 <line x1="210" y1="160" x2="218" y2="160"/>
               </g>
-              <g transform="translate(120,160)">
-                <line class="needle" id="gaugeNeedle" x1="0" y1="0" x2="0" y2="-78" stroke="#F8FAFC" stroke-width="2.5" stroke-linecap="round" transform="rotate(-58)"/>
-                <circle cx="0" cy="0" r="6" fill="#F8FAFC"/>
-                <circle cx="0" cy="0" r="10" fill="none" stroke="rgba(0,229,255,0.4)" stroke-width="1"/>
+              <g id="gaugeNeedle" transform="rotate(-58 120 160)">
+                <line x1="120" y1="160" x2="120" y2="82" stroke="#F8FAFC" stroke-width="2.5" stroke-linecap="round"/>
+              </g>
+              <g>
+                <circle cx="120" cy="160" r="6" fill="#F8FAFC"/>
+                <circle cx="120" cy="160" r="10" fill="none" stroke="rgba(0,229,255,0.4)" stroke-width="1"/>
               </g>
             </svg>
 
@@ -2056,11 +2058,11 @@ document.querySelectorAll('.m-photo-inner').forEach(card=>{
   let currentAngle = 18.4;
   function updateGauge(){
     currentAngle = 14 + Math.random()*10;
-    needle.setAttribute('transform', 'rotate(' + angleToRotation(currentAngle).toFixed(1) + ')');
+    needle.setAttribute('transform', 'rotate(' + angleToRotation(currentAngle).toFixed(1) + ' 120 160)');
     gaugeNum.textContent = currentAngle.toFixed(1) + '°';
     dashAngle.textContent = currentAngle.toFixed(1) + '°';
   }
-  needle.setAttribute('transform', 'rotate(' + angleToRotation(currentAngle) + ')');
+  needle.setAttribute('transform', 'rotate(' + angleToRotation(currentAngle) + ' 120 160)');
   setInterval(updateGauge, 2200);
 
   // sparkline de historial
